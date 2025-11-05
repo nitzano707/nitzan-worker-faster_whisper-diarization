@@ -1,7 +1,9 @@
-# מבוסס על CUDA 12.6 אך עם נפח מופחת
+# ---------------------------------------------------------
+# Dockerfile: Faster-Whisper + PyAnnote (Speaker Diarization)
+# ---------------------------------------------------------
 FROM nvidia/cuda:12.6.3-cudnn-runtime-ubuntu24.04
 
-# הגדרות מערכת
+# הגדרות בסיסיות
 SHELL ["/bin/bash", "-c"]
 ENV DEBIAN_FRONTEND=noninteractive
 WORKDIR /
@@ -13,21 +15,28 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# התקנת ספריות פייתון חיוניות
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+# הגדרת משתנה סביבה עבור Hugging Face
+ARG HF_TOKEN
+ENV HF_TOKEN=${HF_TOKEN}
 
-# התקנת הספריות הנדרשות ל-Faster Whisper + Diarization
-RUN pip install --no-cache-dir \
+# שדרוג pip וכלים נלווים
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel --break-system-packages
+
+# התקנת ספריות עיקריות
+RUN pip install --no-cache-dir --break-system-packages \
     torch torchaudio \
     faster-whisper \
     pyannote.audio==3.3.1 \
     ffmpeg-python \
     runpod numpy
 
-# העתקת הקבצים שלך
+# בדיקה שהכול נטען בהצלחה (יעצור את הבנייה אם משהו לא עובד)
+RUN python3 -c "import torch; from pyannote.audio import Pipeline; print('✅ pyannote.audio loaded successfully with torch', torch.__version__)"
+
+# העתקת הקוד שלך
 COPY src ./
 COPY models models/
 COPY test_input.json .
 
-# הפקודה שתפעיל את ה-worker
+# פקודת ברירת מחדל — הפעלת ה-worker
 CMD ["python3", "-u", "rp_handler.py"]
